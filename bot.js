@@ -1,4 +1,4 @@
-require('dotenv').config()
+require("dotenv").config();
 const fs = require("fs");
 const brain = require("brain.js");
 const {
@@ -8,7 +8,6 @@ const {
   ActivityType,
   ActionRowBuilder,
   ButtonBuilder,
-  Interaction
 } = require("discord.js");
 const client = new Client({
   partials: [
@@ -42,6 +41,46 @@ client.on("ready", () => {
 client.on("messageCreate", async (msg) => {
   if (!msg.content.startsWith("!p")) return;
 
+  const buttonCollector = (message) => {
+    const filter = (interaction) => interaction.user.id === msg.author.id;
+    const collector = msg.channel.createMessageComponentCollector({ filter });
+
+    collector.on("collect", async (interaction) => {
+      if (interaction.customId === "correct") {
+        trainingData.push({ input, output });
+        interaction.reply({
+          content: "Thank you for your feedback",
+          ephemeral: true,
+        });
+        button.setDisabled(true);
+        button2.setDisabled(true);
+        message.edit({ components: [row] });
+        collector.stop();
+      } else if (interaction.customId === "incorrect") {
+        interaction.reply({
+          content: "Please type your correction",
+          ephemeral: true,
+        });
+        const filter = (m) => m.author.id === msg.author.id;
+        const collector = msg.channel.createMessageCollector({ filter });
+        collector.on("collect", async (m) => {
+          trainingData.push({ input, output: m.content });
+          fs.writeFileSync("trainingData.json", JSON.stringify(trainingData));
+          m.reply({ content: "Thank you for your feedback", ephemeral: true });
+          button.setDisabled(true);
+          button2.setDisabled(true);
+          message.edit({ components: [row] });
+          collector.stop();
+        });
+      }
+    });
+
+    collector.on("end", (collected) => {
+      console.log(`Collected ${collected.size} interactions.`);
+      collector.stop();
+    });
+  };
+
   const input = msg.content.slice(2).toLowerCase();
   let output = net.run(input);
   const row = new ActionRowBuilder();
@@ -57,36 +96,23 @@ client.on("messageCreate", async (msg) => {
   button2.setEmoji("❌");
   row.addComponents(button, button2);
   if (output.length > 0) {
-    msg.reply({ content: output, components: [row]});
-  } else {
-    msg.reply({ content: "I don't know what to say", components: [row] });
-  }
-
-  const filter = (interaction) => interaction.user.id === msg.author.id;
-  const collector = msg.channel.createMessageComponentCollector({ filter, time: 15000 });
-
-  collector.on("collect", async (interaction) => {
-    if (interaction.customId === "correct") {
-      trainingData.push({ input, output });
-      fs.writeFileSync("trainingData.json", JSON.stringify(trainingData));
-      interaction.reply({ content: "Thank you for your feedback", ephemeral: true });
-    } else if (interaction.customId === "incorrect") {
-      interaction.reply({ content: "Please type your correction", ephemeral: true });
-      const filter = (m) => m.author.id === msg.author.id;
-      const collector = msg.channel.createMessageCollector({ filter, time: 15000 });
-      collector.on("collect", async (m) => {
-        trainingData.push({ input, output: m.content });
-        fs.writeFileSync("trainingData.json", JSON.stringify(trainingData));
-        m.reply({ content: "Thank you for your feedback", ephemeral: true });
+    await msg
+      .reply({ content: output, components: [row] })
+      .then((message) => {
+        buttonCollector(message);
+      })
+      .catch((err) => {
+        console.log(err);
       });
-    }
-  });
-
-  collector.on("end", (collected) => {
-    console.log(`Collected ${collected.size} interactions.`);
-  });
-
-
+  } else {
+    await msg
+      .reply({ content: "I don't know what to say", components: [row] })
+      .then((message) => {
+        buttonCollector(message).catch((err) => {
+          console.log(err);
+        });
+      });
+  }
 });
 
 client.login(process.env.BOT_TOKEN);
