@@ -42,8 +42,8 @@ client.on("messageCreate", async (msg) => {
   if (!msg.content.startsWith("!p")) return;
 
   const buttonCollector = (message) => {
-    const filter = (interaction) => interaction.user.id === msg.author.id;
-    const collector = msg.channel.createMessageComponentCollector({ filter });
+    const filter = (interaction) => interaction.user.id === message.author.id;
+    const collector = message.channel.createMessageComponentCollector({ filter });
 
     collector.on("collect", async (interaction) => {
       if (interaction.customId === "correct") {
@@ -61,8 +61,8 @@ client.on("messageCreate", async (msg) => {
           content: "Please type your correction",
           ephemeral: true,
         });
-        const filter = (m) => m.author.id === msg.author.id;
-        const collector = msg.channel.createMessageCollector({ filter });
+        const filter = (m) => m.author.id === message.author.id;
+        const collector = message.channel.createMessageCollector({ filter });
         collector.on("collect", async (m) => {
           trainingData.push({ input, output: m.content });
           fs.writeFileSync("trainingData.json", JSON.stringify(trainingData));
